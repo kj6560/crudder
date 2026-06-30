@@ -4,6 +4,9 @@
 
 @section('content')
     <style>
+        .shell {
+            max-width: 1640px;
+        }
         .wizard-shell {
             display: grid;
             gap: 18px;
@@ -14,12 +17,12 @@
         }
         .wizard-grid {
             display: grid;
-            grid-template-columns: 280px minmax(0, 1fr) 320px;
+            grid-template-columns: 280px minmax(0, 1fr);
             gap: 16px;
             align-items: start;
         }
         .workspace-panel {
-            min-height: 76vh;
+            min-height: 84vh;
             position: relative;
             overflow: hidden;
             border: 1px solid var(--line);
@@ -36,9 +39,38 @@
             margin-bottom: 12px;
             flex-wrap: wrap;
         }
+        .selected-table-strip {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding: 0 12px 12px;
+            scrollbar-gutter: stable both-edges;
+        }
+        .selected-table-card {
+            flex: 0 0 260px;
+            border: 1px solid #dbe3ee;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+            padding: 14px;
+            cursor: pointer;
+        }
+        .selected-table-card.active {
+            border-color: rgba(245, 158, 11, 0.85);
+            box-shadow: 0 14px 28px rgba(245, 158, 11, 0.12);
+            background: #fffdf7;
+        }
+        .selected-table-card strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+        .selected-table-card .meta {
+            font-size: .88rem;
+            color: var(--muted);
+        }
         .workspace-canvas {
             position: relative;
-            min-height: 68vh;
+            min-height: 70vh;
             border-radius: 20px;
             margin: 0 12px 12px;
             overflow: auto;
@@ -50,7 +82,7 @@
         }
         .workspace-stage {
             position: relative;
-            min-width: 1600px;
+            min-width: 2200px;
             min-height: 860px;
         }
         .workspace-stage::after {
@@ -169,6 +201,41 @@
             padding-top: 4px;
             border-top: 1px solid #eef2f7;
         }
+        .workspace-settings-inline {
+            display: grid;
+            gap: 12px;
+            padding: 16px 18px 18px;
+            border-top: 1px solid #eef2f7;
+            background: linear-gradient(180deg, #fff, #f8fafc);
+        }
+        .settings-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+        .settings-row {
+            display: grid;
+            gap: 8px;
+        }
+        .settings-row label {
+            font-size: 12px;
+            color: #475569;
+        }
+        .settings-row select,
+        .settings-row input {
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid #cbd5e1;
+            padding: 10px 12px;
+            background: #fff;
+        }
+        .selected-relations {
+            display: grid;
+            gap: 10px;
+        }
+        .selected-relations .relation-row {
+            margin: 0;
+        }
         .relations-head {
             display: flex;
             justify-content: space-between;
@@ -210,7 +277,7 @@
         .palette-list {
             display: grid;
             gap: 10px;
-            max-height: 72vh;
+            max-height: 82vh;
             overflow: auto;
             padding-right: 4px;
         }
@@ -229,14 +296,6 @@
         .palette-card .meta {
             color: var(--muted);
             font-size: .9rem;
-        }
-        .inspector {
-            display: grid;
-            gap: 14px;
-        }
-        .inspector .panel {
-            position: sticky;
-            top: 20px;
         }
         .badge {
             display: inline-flex;
@@ -274,11 +333,19 @@
             .wizard-grid {
                 grid-template-columns: 1fr;
             }
-            .inspector .panel {
-                position: static;
-            }
             .palette-list {
                 max-height: none;
+            }
+            .settings-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        @media (max-width: 720px) {
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+            .selected-table-card {
+                flex-basis: 220px;
             }
         }
     </style>
@@ -345,6 +412,7 @@
                         </div>
                         <span class="badge" id="selection-badge">No column selected</span>
                     </div>
+                    <div class="selected-table-strip" id="selected-table-strip"></div>
                     <div class="workspace-canvas" id="workspace-canvas">
                         <div class="workspace-stage" id="workspace-stage">
                             <svg class="workspace-svg" id="workspace-svg" aria-hidden="true">
@@ -362,40 +430,52 @@
                             </div>
                         </div>
                     </div>
+                    <div class="workspace-settings-inline">
+                        <div class="toolbar">
+                            <div>
+                                <h2 class="section-title">Relation settings</h2>
+                                <div class="small">These settings stay inside the main workspace box and update the selected table or relation.</div>
+                            </div>
+                            <div class="action-row">
+                                <button type="button" class="button ghost" id="clear-selection">Clear selection</button>
+                            </div>
+                        </div>
+                        <div class="settings-grid">
+                            <div class="settings-row">
+                                <label for="default_relation_type">Default relation type</label>
+                                <select id="default_relation_type">
+                                    @foreach($relationTypes as $key => $label)
+                                        <option value="{{ $key }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="settings-row">
+                                <label>Selected source</label>
+                                <input type="text" id="selection-text" value="None" readonly>
+                            </div>
+                            <div class="settings-row">
+                                <label>Selected table</label>
+                                <input type="text" id="active-table-text" value="None" readonly>
+                            </div>
+                            <div class="settings-row">
+                                <label>Workspace status</label>
+                                <input type="text" id="workspace-status" value="Drop tables to begin" readonly>
+                            </div>
+                        </div>
+                        <div id="relation-settings-body"></div>
+                        <div class="selected-relations" id="selected-relations"></div>
+                    </div>
                 </section>
+            </div>
 
-                <aside class="inspector">
-                    <div class="panel">
-                        <h2 class="section-title">Relation settings</h2>
-                        <div class="line-help">
-                            <div>Use this relation type when you click columns on the canvas. You can change it before linking.</div>
-                        </div>
-                        <div class="field" style="margin-top:12px">
-                            <label for="default_relation_type">Default relation type</label>
-                            <select id="default_relation_type">
-                                @foreach($relationTypes as $key => $label)
-                                    <option value="{{ $key }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="field" style="margin-top:12px">
-                            <label>Selected source</label>
-                            <div class="small" id="selection-text">None</div>
-                        </div>
-                        <div class="action-row" style="margin-top:12px">
-                            <button type="button" class="button ghost" id="clear-selection">Clear selection</button>
-                        </div>
-                    </div>
-                    <div class="panel">
-                        <h2 class="section-title">How it works</h2>
-                        <div class="line-help">
-                            <div>1. Drag tables into the canvas.</div>
-                            <div>2. Click a source column, then a target column.</div>
-                            <div>3. Edit the relation row inside the table card if you want to change type or columns.</div>
-                            <div>4. Generate the config and models in the applied Laravel project.</div>
-                        </div>
-                    </div>
-                </aside>
+            <div class="panel">
+                <h2 class="section-title">How it works</h2>
+                <div class="line-help">
+                    <div>1. Drag tables into the canvas.</div>
+                    <div>2. Click a source column, then a target column.</div>
+                    <div>3. Edit the relation row inside the table card or the relation panel inside the box.</div>
+                    <div>4. Generate the config and models in the applied Laravel project.</div>
+                </div>
             </div>
         </form>
     </div>
@@ -414,13 +494,19 @@
         const graphInput = document.getElementById('graph_state');
         const selectionBadge = document.getElementById('selection-badge');
         const selectionText = document.getElementById('selection-text');
+        const activeTableText = document.getElementById('active-table-text');
+        const workspaceStatus = document.getElementById('workspace-status');
         const relationTypeSelect = document.getElementById('default_relation_type');
         const clearSelectionButton = document.getElementById('clear-selection');
         const centerButton = document.getElementById('center-workspace');
         const emptyState = document.getElementById('workspace-empty');
+        const selectedTableStrip = document.getElementById('selected-table-strip');
+        const selectedRelations = document.getElementById('selected-relations');
+        const relationSettingsBody = document.getElementById('relation-settings-body');
 
         const state = normalizeGraph(initialGraph || {});
         let selectedEndpoint = null;
+        let activeTable = tableNames()[0] || null;
         let dragging = null;
         let dragOffset = { x: 0, y: 0 };
         let relationCounter = state.meta?.nextRelationId || 1;
@@ -578,6 +664,12 @@
             card.querySelector('.remove-table').addEventListener('click', () => removeTable(tableName));
             card.querySelector('.add-relation').addEventListener('click', () => addInlineRelation(tableName));
             card.querySelector('[data-drag-handle]').addEventListener('pointerdown', (event) => startDrag(event, tableName, card));
+            card.addEventListener('click', (event) => {
+                if (event.target.closest('button, select, input, textarea, label')) {
+                    return;
+                }
+                setActiveTable(tableName);
+            });
 
             return card;
         }
@@ -664,6 +756,11 @@
             });
 
             emptyState.style.display = ordered.length ? 'none' : 'grid';
+            activeTable = activeTable && state.tables[activeTable] ? activeTable : (ordered[0] || null);
+            renderSelectedTableStrip();
+            renderRelationSettings();
+            renderSelectedRelations();
+            renderWorkspaceStatus();
             syncSelectionUi();
             drawConnections();
         }
@@ -671,18 +768,191 @@
         function syncSelectionUi() {
             if (!selectedEndpoint) {
                 selectionBadge.textContent = 'No column selected';
-                selectionText.textContent = 'None';
+                selectionText.value = 'None';
                 document.querySelectorAll('.column-pill.active').forEach((node) => node.classList.remove('active'));
                 return;
             }
 
             selectionBadge.textContent = `${selectedEndpoint.table}.${selectedEndpoint.column}`;
-            selectionText.textContent = `Source: ${selectedEndpoint.table}.${selectedEndpoint.column}`;
+            selectionText.value = `Source: ${selectedEndpoint.table}.${selectedEndpoint.column}`;
 
             document.querySelectorAll('.column-pill').forEach((node) => {
                 const isActive = node.closest('.workspace-card')?.dataset.table === selectedEndpoint.table && node.dataset.column === selectedEndpoint.column;
                 node.classList.toggle('active', isActive);
             });
+        }
+
+        function setActiveTable(tableName) {
+            if (!state.tables[tableName]) {
+                return;
+            }
+
+            activeTable = tableName;
+            renderSelectedTableStrip();
+            renderRelationSettings();
+            renderSelectedRelations();
+            renderWorkspaceStatus();
+            syncSelectionUi();
+        }
+
+        function renderSelectedTableStrip() {
+            if (!selectedTableStrip) {
+                return;
+            }
+
+            const ordered = tableOrder();
+            selectedTableStrip.innerHTML = '';
+
+            if (!ordered.length) {
+                const empty = document.createElement('div');
+                empty.className = 'small';
+                empty.style.padding = '6px 2px';
+                empty.textContent = 'Dragged tables will appear here.';
+                selectedTableStrip.appendChild(empty);
+                return;
+            }
+
+            ordered.forEach((tableName) => {
+                const table = crudderSchema[tableName] || {};
+                const card = document.createElement('button');
+                card.type = 'button';
+                card.className = 'selected-table-card';
+                if (activeTable === tableName) {
+                    card.classList.add('active');
+                }
+                card.innerHTML = `
+                    <strong>${tableName}</strong>
+                    <div class="meta">${columnsFor(tableName).length} columns</div>
+                    <div class="meta">${columnsFor(tableName).map((column) => String(column.name || '')).join(', ')}</div>
+                `;
+                card.addEventListener('click', () => setActiveTable(tableName));
+                selectedTableStrip.appendChild(card);
+            });
+        }
+
+        function renderRelationSettings() {
+            if (!relationSettingsBody) {
+                return;
+            }
+
+            if (!activeTable || !state.tables[activeTable]) {
+                relationSettingsBody.innerHTML = '<div class="small" style="padding:4px 0 0">Drag a table into the workspace to configure its relations here.</div>';
+                return;
+            }
+
+            const tableOptions = tableNames().map((name) => `<option value="${name}">${name}</option>`).join('');
+            const columnOptions = columnsForSelect(activeTable, '', false);
+            relationSettingsBody.innerHTML = `
+                <div class="toolbar" style="margin-top:14px">
+                    <div>
+                        <div class="small">Quick relation builder for <strong>${activeTable}</strong></div>
+                        <div class="small">Pick the relation type and target table, then add it from here.</div>
+                    </div>
+                    <button type="button" class="button primary" id="add-active-relation">Add relation</button>
+                </div>
+                <div class="settings-grid" style="margin-top:12px">
+                    <div class="settings-row">
+                        <label>Relation type</label>
+                        <select id="active-relation-type">
+                            ${Object.entries(relationTypes).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label>Source column</label>
+                        <select id="active-from-column">${columnOptions}</select>
+                    </div>
+                    <div class="settings-row">
+                        <label>Target table</label>
+                        <select id="active-to-table">${tableOptions}</select>
+                    </div>
+                    <div class="settings-row">
+                        <label>Target column</label>
+                        <select id="active-to-column"></select>
+                    </div>
+                </div>
+                <div class="settings-grid" style="margin-top:12px">
+                    <div class="settings-row">
+                        <label>Label column</label>
+                        <select id="active-label-column"></select>
+                    </div>
+                    <div class="settings-row">
+                        <label>Selected table</label>
+                        <input type="text" value="${activeTable}" readonly>
+                    </div>
+                    <div class="settings-row">
+                        <label>Selection</label>
+                        <input type="text" value="${selectedEndpoint ? `${selectedEndpoint.table}.${selectedEndpoint.column}` : 'None'}" readonly>
+                    </div>
+                    <div class="settings-row">
+                        <label>Tip</label>
+                        <input type="text" value="Drag cards or click columns to link them" readonly>
+                    </div>
+                </div>
+            `;
+
+            const activeRelationType = document.getElementById('active-relation-type');
+            const activeFromColumn = document.getElementById('active-from-column');
+            const activeToTable = document.getElementById('active-to-table');
+            const activeToColumn = document.getElementById('active-to-column');
+            const activeLabelColumn = document.getElementById('active-label-column');
+            const addActiveRelation = document.getElementById('add-active-relation');
+
+            const refreshTargets = () => {
+                const targetTable = activeToTable.value || tableNames().find((name) => name !== activeTable) || activeTable;
+                activeToColumn.innerHTML = columnsForSelect(targetTable, '', false);
+                activeLabelColumn.innerHTML = labelColumnsForSelect(targetTable, '');
+                if (!activeToTable.value && targetTable) {
+                    activeToTable.value = targetTable;
+                }
+            };
+
+            activeToTable.addEventListener('change', refreshTargets);
+            refreshTargets();
+
+            addActiveRelation.addEventListener('click', () => {
+                addRelation({
+                    type: activeRelationType.value,
+                    from_table: activeTable,
+                    from_column: activeFromColumn.value || columnsFor(activeTable)[0]?.name || '',
+                    to_table: activeToTable.value || tableNames().find((name) => name !== activeTable) || activeTable,
+                    to_column: activeToColumn.value || columnsFor(activeToTable.value || activeTable)[0]?.name || 'id',
+                    label_column: activeLabelColumn.value || suggestLabelColumn(activeToTable.value || activeTable),
+                });
+            });
+        }
+
+        function renderSelectedRelations() {
+            if (!selectedRelations) {
+                return;
+            }
+
+            if (!activeTable || !state.tables[activeTable]) {
+                selectedRelations.innerHTML = '';
+                return;
+            }
+
+            const rows = state.relations.filter((relation) => relation.from_table === activeTable);
+            if (rows.length === 0) {
+                selectedRelations.innerHTML = '<div class="small">No relations defined for the active table yet.</div>';
+                return;
+            }
+
+            selectedRelations.innerHTML = '<h3 style="margin:4px 0 0;font-size:1rem">Active table relations</h3>';
+            rows.forEach((relation) => {
+                selectedRelations.appendChild(makeRelationRow(relation));
+            });
+        }
+
+        function renderWorkspaceStatus() {
+            if (!workspaceStatus) {
+                return;
+            }
+
+            const count = Object.keys(state.tables).length;
+            workspaceStatus.value = count ? `${count} table(s) in the board` : 'Drop tables to begin';
+            if (activeTableText) {
+                activeTableText.value = activeTable || 'None';
+            }
         }
 
         function syncGraphInput() {
@@ -714,6 +984,9 @@
             state.relations = state.relations.filter((relation) => relation.from_table !== tableName && relation.to_table !== tableName);
             if (selectedEndpoint && selectedEndpoint.table === tableName) {
                 selectedEndpoint = null;
+            }
+            if (activeTable === tableName) {
+                activeTable = tableNames().find((name) => state.tables[name]) || null;
             }
             renderWorkspace();
             syncGraphInput();
@@ -984,7 +1257,7 @@
         renderWorkspace();
 
         if (Object.keys(state.tables).length === 0) {
-            selectionText.textContent = 'Drop a table to begin';
+            selectionText.value = 'Drop a table to begin';
         }
     </script>
 @endpush
