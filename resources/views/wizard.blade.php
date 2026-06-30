@@ -115,6 +115,7 @@
             height: 100%;
             overflow: visible;
             pointer-events: none;
+            z-index: 1;
         }
         .workspace-card {
             position: absolute;
@@ -124,6 +125,7 @@
             background: rgba(255, 255, 255, 0.98);
             box-shadow: 0 18px 36px rgba(15, 23, 42, 0.08);
             overflow: hidden;
+            z-index: 2;
         }
         .workspace-card.active {
             outline: 2px solid rgba(245, 158, 11, 0.45);
@@ -1171,23 +1173,35 @@
                     return;
                 }
 
-                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.dataset.relationLine = relation.id;
-                line.setAttribute('x1', String(from.x));
-                line.setAttribute('y1', String(from.y));
-                line.setAttribute('x2', String(to.x));
-                line.setAttribute('y2', String(to.y));
-                line.setAttribute('stroke', relationColor(relation.type));
-                line.setAttribute('stroke-width', '2.5');
-                line.setAttribute('stroke-linecap', 'round');
-                line.setAttribute('marker-end', 'url(#crudder-arrow)');
-                line.style.color = relationColor(relation.type);
-                svg.appendChild(line);
+                const startX = from.x + 18;
+                const endX = to.x - 18;
+                const midX = startX + ((endX - startX) / 2);
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.dataset.relationLine = relation.id;
+                path.setAttribute('d', `M ${startX} ${from.y} L ${midX} ${from.y} L ${midX} ${to.y} L ${endX} ${to.y}`);
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke', relationColor(relation.type));
+                path.setAttribute('stroke-width', '3');
+                path.setAttribute('stroke-linecap', 'round');
+                path.setAttribute('stroke-linejoin', 'round');
+                path.setAttribute('marker-end', 'url(#crudder-arrow)');
+                path.style.color = relationColor(relation.type);
+                svg.appendChild(path);
+
+                const shadow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                shadow.dataset.relationLine = relation.id;
+                shadow.setAttribute('d', `M ${startX} ${from.y} L ${midX} ${from.y} L ${midX} ${to.y} L ${endX} ${to.y}`);
+                shadow.setAttribute('fill', 'none');
+                shadow.setAttribute('stroke', 'rgba(15, 23, 42, 0.08)');
+                shadow.setAttribute('stroke-width', '8');
+                shadow.setAttribute('stroke-linecap', 'round');
+                shadow.setAttribute('stroke-linejoin', 'round');
+                svg.insertBefore(shadow, path);
 
                 const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 label.dataset.relationLine = relation.id;
-                label.setAttribute('x', String((from.x + to.x) / 2));
-                label.setAttribute('y', String((from.y + to.y) / 2 - 6));
+                label.setAttribute('x', String(midX));
+                label.setAttribute('y', String(Math.min(from.y, to.y) - 8));
                 label.setAttribute('fill', relationColor(relation.type));
                 label.setAttribute('font-size', '11');
                 label.setAttribute('font-weight', '700');
