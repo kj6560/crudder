@@ -1112,8 +1112,8 @@
             }
 
             const stageRect = stage.getBoundingClientRect();
-            const x = event.clientX - stageRect.left - dragOffset.x;
-            const y = event.clientY - stageRect.top - dragOffset.y;
+            const x = event.clientX - stageRect.left + canvas.scrollLeft - dragOffset.x;
+            const y = event.clientY - stageRect.top + canvas.scrollTop - dragOffset.y;
             const position = normalizePosition(dragging.tableName, x, y);
 
             state.tables[dragging.tableName].x = position.x;
@@ -1149,8 +1149,8 @@
             const canvasRect = stage.getBoundingClientRect();
             const buttonRect = anchor.getBoundingClientRect();
             return {
-                x: buttonRect.left - canvasRect.left + (buttonRect.width / 2),
-                y: buttonRect.top - canvasRect.top + (buttonRect.height / 2),
+                x: buttonRect.left - canvasRect.left + canvas.scrollLeft + (buttonRect.width / 2),
+                y: buttonRect.top - canvasRect.top + canvas.scrollTop + (buttonRect.height / 2),
             };
         }
 
@@ -1241,8 +1241,8 @@
             const canvasRect = stage.getBoundingClientRect();
             addTable(
                 tableName,
-                event.clientX - canvasRect.left - 140,
-                event.clientY - canvasRect.top - 50
+                event.clientX - canvasRect.left + canvas.scrollLeft - 140,
+                event.clientY - canvasRect.top + canvas.scrollTop - 50
             );
         });
 
