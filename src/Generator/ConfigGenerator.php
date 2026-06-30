@@ -31,7 +31,8 @@ final class ConfigGenerator
             mode: (string)($options['mode'] ?? 'laravel'),
             database: $options['database'] ?? [],
             spec: $options['spec'] ?? null,
-            joins: $options['joins'] ?? []
+            joins: $options['joins'] ?? [],
+            graph: $options['graph'] ?? null
         );
 
         $configFile = $output . '/crudder.php';
@@ -43,7 +44,7 @@ final class ConfigGenerator
         ];
     }
 
-    public function makeConfig(array $schema, string $mode, array $database, ?array $spec, array $joins): array
+    public function makeConfig(array $schema, string $mode, array $database, ?array $spec, array $joins, ?array $graph = null): array
     {
         $resources = [];
         foreach ($schema as $tableName => $table) {
@@ -67,6 +68,8 @@ final class ConfigGenerator
             ],
             'database' => $database,
             'resources' => $resources,
+            'relations' => $graph['relations'] ?? [],
+            'graph' => $graph,
         ];
     }
 

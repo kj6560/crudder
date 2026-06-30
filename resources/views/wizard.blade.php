@@ -3,287 +3,960 @@
 @section('title', 'Curdder Wizard')
 
 @section('content')
-    <div class="hero">
-        <h1>Database table selector</h1>
-        <p>Pick the tables to generate, add joins visually, and create new tables inside your Laravel app.</p>
-        <div class="hero-actions">
-            <a class="button primary" href="{{ $createTableUrl }}">Create Table</a>
-            <a class="button secondary" href="{{ route('crudder.index') }}">Refresh schema</a>
-        </div>
-    </div>
+    <style>
+        .wizard-shell {
+            display: grid;
+            gap: 18px;
+        }
+        .wizard-hero {
+            display: grid;
+            gap: 12px;
+        }
+        .wizard-grid {
+            display: grid;
+            grid-template-columns: 280px minmax(0, 1fr) 320px;
+            gap: 16px;
+            align-items: start;
+        }
+        .workspace-panel {
+            min-height: 72vh;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            background:
+                radial-gradient(circle at top left, rgba(245, 158, 11, 0.08), transparent 28%),
+                linear-gradient(180deg, #fff, #f8fafc);
+        }
+        .workspace-toolbar {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .workspace-canvas {
+            position: relative;
+            min-height: 64vh;
+            border-radius: 20px;
+            margin: 0 12px 12px;
+            background:
+                linear-gradient(transparent 95%, rgba(148, 163, 184, 0.16) 96%),
+                linear-gradient(90deg, transparent 95%, rgba(148, 163, 184, 0.16) 96%);
+            background-size: 56px 56px;
+            overflow: hidden;
+        }
+        .workspace-empty {
+            position: absolute;
+            inset: 24px;
+            display: grid;
+            place-items: center;
+            text-align: center;
+            color: var(--muted);
+            border: 1px dashed rgba(100, 116, 139, 0.25);
+            border-radius: 20px;
+            pointer-events: none;
+            background: rgba(255, 255, 255, 0.36);
+        }
+        .workspace-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+            pointer-events: none;
+        }
+        .workspace-card {
+            position: absolute;
+            width: 280px;
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.08);
+            overflow: hidden;
+        }
+        .workspace-card.active {
+            outline: 2px solid rgba(245, 158, 11, 0.45);
+            box-shadow: 0 18px 42px rgba(245, 158, 11, 0.14);
+        }
+        .card-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: center;
+            padding: 14px 14px 12px;
+            border-bottom: 1px solid #eef2f7;
+            background: linear-gradient(180deg, #fff, #f8fafc);
+            cursor: grab;
+            user-select: none;
+        }
+        .card-title {
+            display: grid;
+            gap: 2px;
+        }
+        .card-title strong {
+            font-size: 1rem;
+        }
+        .card-title span {
+            font-size: .84rem;
+            color: var(--muted);
+        }
+        .card-body {
+            display: grid;
+            gap: 12px;
+            padding: 12px 14px 14px;
+        }
+        .column-list {
+            display: grid;
+            gap: 8px;
+        }
+        .column-pill {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            background: #fff;
+            padding: 10px 12px;
+            text-align: left;
+            cursor: pointer;
+        }
+        .column-pill:hover {
+            border-color: rgba(245, 158, 11, 0.55);
+            box-shadow: 0 8px 18px rgba(245, 158, 11, 0.08);
+        }
+        .column-pill.active {
+            border-color: rgba(245, 158, 11, 0.9);
+            background: #fff7ed;
+        }
+        .column-pill small {
+            color: var(--muted);
+        }
+        .relations-panel {
+            display: grid;
+            gap: 10px;
+            padding-top: 4px;
+            border-top: 1px solid #eef2f7;
+        }
+        .relations-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: center;
+        }
+        .relations-list {
+            display: grid;
+            gap: 10px;
+        }
+        .relation-row {
+            display: grid;
+            gap: 10px;
+            padding: 12px;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            background: #fbfdff;
+        }
+        .relation-row .mini-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .relation-row .mini-grid.three {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .relation-row label {
+            font-size: 12px;
+            color: #475569;
+        }
+        .relation-row select,
+        .relation-row input {
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid #cbd5e1;
+            padding: 10px 12px;
+            background: #fff;
+        }
+        .palette-list {
+            display: grid;
+            gap: 10px;
+            max-height: 72vh;
+            overflow: auto;
+            padding-right: 4px;
+        }
+        .palette-card {
+            padding: 14px;
+            border-radius: 18px;
+            border: 1px solid #dbe3ee;
+            background: #fff;
+            cursor: grab;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+        }
+        .palette-card strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+        .palette-card .meta {
+            color: var(--muted);
+            font-size: .9rem;
+        }
+        .inspector {
+            display: grid;
+            gap: 14px;
+        }
+        .inspector .panel {
+            position: sticky;
+            top: 20px;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 10px;
+            border-radius: 999px;
+            background: #fff7ed;
+            color: #9a3412;
+            font-size: .86rem;
+            border: 1px solid #fed7aa;
+        }
+        .line-help {
+            display: grid;
+            gap: 8px;
+            color: var(--muted);
+            font-size: .92rem;
+        }
+        .action-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .icon-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: #fff;
+            cursor: pointer;
+        }
+        @media (max-width: 1180px) {
+            .wizard-grid {
+                grid-template-columns: 1fr;
+            }
+            .inspector .panel {
+                position: static;
+            }
+            .palette-list {
+                max-height: none;
+            }
+        }
+    </style>
 
-    @if(session('status'))
-        <div class="notice">{{ session('status') }}</div>
-    @endif
-
-    @foreach($errors as $error)
-        <div class="error">{{ $error }}</div>
-    @endforeach
-
-    <form method="post" action="{{ $generateUrl }}" class="form-grid">
-        @csrf
-        <div class="panel">
-            <div class="field">
-                <label for="app_name">App name</label>
-                <input id="app_name" name="app_name" value="{{ old('app_name', $appName) }}">
+    <div class="wizard-shell">
+        <div class="hero wizard-hero">
+            <h1>Database relation builder</h1>
+            <p>Drag tables into the workspace, connect columns with straight arrows, and generate CRUD config plus Laravel models inside this app.</p>
+            <div class="hero-actions">
+                <a class="button primary" href="{{ $createTableUrl }}">Create Table</a>
+                <a class="button secondary" href="{{ route('crudder.index') }}">Refresh schema</a>
             </div>
         </div>
 
-        <div class="grid cards">
-            @foreach($schema as $name => $table)
-                <label class="card">
-                    <div class="toolbar" style="align-items:flex-start">
-                        <div>
-                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-                                <input type="checkbox" name="tables[]" value="{{ $name }}" @checked(in_array($name, $selectedTables, true))>
-                                <strong>{{ $table['name'] ?? $name }}</strong>
-                            </div>
-                            <div class="small">{{ $table['primary_key'] ?? 'id' }}</div>
-                        </div>
-                    </div>
-                    <div class="small" style="margin-top:12px">
-                        {{ implode(', ', array_map(static fn ($column) => $column['name'], $table['columns'] ?? [])) }}
-                    </div>
-                </label>
-            @endforeach
-        </div>
+        @if(session('status'))
+            <div class="notice">{{ session('status') }}</div>
+        @endif
 
-        <div class="panel">
-            <div class="toolbar" style="margin-bottom: 14px">
-                <div>
-                    <h2 class="section-title">Join builder</h2>
-                    <div class="small">Rows are draggable. The detected joins are already prefilled, and you can edit or add more.</div>
+        @foreach($errors as $error)
+            <div class="error">{{ $error }}</div>
+        @endforeach
+
+        <form method="post" action="{{ $generateUrl }}" id="crudder-form" class="form-grid">
+            @csrf
+            <input type="hidden" name="graph_state" id="graph_state" value="">
+
+            <div class="panel">
+                <div class="workspace-toolbar">
+                    <div class="field" style="min-width:260px;flex:1">
+                        <label for="app_name">App name</label>
+                        <input id="app_name" name="app_name" value="{{ old('app_name', $appName) }}">
+                    </div>
+                    <div class="action-row">
+                        <button type="button" class="button ghost" id="center-workspace">Center layout</button>
+                        <button type="submit" class="button primary">Generate config and models</button>
+                    </div>
                 </div>
-                <button type="button" class="button ghost" id="add-join">Add join</button>
             </div>
 
-            <div class="row-list" id="join-list">
-                @foreach($joinRows as $row)
-                    <div class="row-item join-row" draggable="true">
-                        <div class="row-header">
-                            <div class="row-handle">Drag to reorder</div>
-                            <button type="button" class="button ghost remove-row">Remove</button>
+            <div class="wizard-grid">
+                <aside class="panel">
+                    <div class="toolbar" style="margin-bottom:12px">
+                        <div>
+                            <h2 class="section-title">Tables</h2>
+                            <div class="small">Drag a table into the workspace.</div>
                         </div>
-                        <div class="row-columns join">
-                            <div class="field">
-                                <label>From table</label>
-                                <select data-field="left_table">
-                                    <option value="">Choose...</option>
-                                    @foreach(array_keys($schema) as $tableName)
-                                        <option value="{{ $tableName }}" @selected(($row['left_table'] ?? '') === $tableName)>{{ $tableName }}</option>
-                                    @endforeach
-                                </select>
+                    </div>
+                    <div class="palette-list" id="table-palette">
+                        @foreach($schema as $name => $table)
+                            <div class="palette-card" draggable="true" data-table="{{ $name }}">
+                                <strong>{{ $table['name'] ?? $name }}</strong>
+                                <div class="meta">{{ count($table['columns'] ?? []) }} columns</div>
+                                <div class="meta">{{ implode(', ', array_map(static fn ($column) => $column['name'], $table['columns'] ?? [])) }}</div>
                             </div>
-                            <div class="field">
-                                <label>From column</label>
-                                <select data-field="left_column"></select>
-                            </div>
-                            <div class="field">
-                                <label>To table</label>
-                                <select data-field="right_table">
-                                    <option value="">Choose...</option>
-                                    @foreach(array_keys($schema) as $tableName)
-                                        <option value="{{ $tableName }}" @selected(($row['right_table'] ?? '') === $tableName)>{{ $tableName }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="field">
-                                <label>To column</label>
-                                <select data-field="right_column"></select>
-                            </div>
-                            <div class="field">
-                                <label>Label column</label>
-                                <select data-field="label_column"></select>
-                            </div>
-                            <div class="field">
-                                <label>&nbsp;</label>
-                                <input type="hidden" data-field="row_marker" value="1">
+                        @endforeach
+                    </div>
+                </aside>
+
+                <section class="workspace-panel panel">
+                    <div class="workspace-toolbar" style="padding:18px 18px 0">
+                        <div>
+                            <h2 class="section-title">Workspace</h2>
+                            <div class="small">Click one column, then another to create a relation. Each relation can also be edited inside the table card.</div>
+                        </div>
+                        <span class="badge" id="selection-badge">No column selected</span>
+                    </div>
+                    <div class="workspace-canvas" id="workspace-canvas">
+                        <svg class="workspace-svg" id="workspace-svg" aria-hidden="true">
+                            <defs>
+                                <marker id="crudder-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                                    <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+                                </marker>
+                            </defs>
+                        </svg>
+                        <div class="workspace-empty" id="workspace-empty">
+                            <div>
+                                <h3 style="margin:0 0 8px">Drop tables here</h3>
+                                <div>Drag tables from the left or drop them on this area.</div>
                             </div>
                         </div>
                     </div>
-                @endforeach
-            </div>
+                </section>
 
-            <div class="suggestions" style="margin-top:16px">
-                @foreach($schema as $leftTable => $table)
-                    @foreach(($table['foreign_keys'] ?? []) as $leftColumn => $fk)
-                        <button type="button"
-                                class="chip suggested-join"
-                                data-left-table="{{ $leftTable }}"
-                                data-left-column="{{ $leftColumn }}"
-                                data-right-table="{{ $fk['table'] }}"
-                                data-right-column="{{ $fk['column'] }}"
-                                data-label-column="{{ $fk['label_column'] ?? '' }}">
-                            Suggested: {{ $leftTable }}.{{ $leftColumn }} -> {{ $fk['table'] }}.{{ $fk['column'] }}{{ !empty($fk['label_column']) ? ' (' . $fk['label_column'] . ')' : '' }}
-                        </button>
-                    @endforeach
-                @endforeach
+                <aside class="inspector">
+                    <div class="panel">
+                        <h2 class="section-title">Relation settings</h2>
+                        <div class="line-help">
+                            <div>Use this relation type when you click columns on the canvas. You can change it before linking.</div>
+                        </div>
+                        <div class="field" style="margin-top:12px">
+                            <label for="default_relation_type">Default relation type</label>
+                            <select id="default_relation_type">
+                                @foreach($relationTypes as $key => $label)
+                                    <option value="{{ $key }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="field" style="margin-top:12px">
+                            <label>Selected source</label>
+                            <div class="small" id="selection-text">None</div>
+                        </div>
+                        <div class="action-row" style="margin-top:12px">
+                            <button type="button" class="button ghost" id="clear-selection">Clear selection</button>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <h2 class="section-title">How it works</h2>
+                        <div class="line-help">
+                            <div>1. Drag tables into the canvas.</div>
+                            <div>2. Click a source column, then a target column.</div>
+                            <div>3. Edit the relation row inside the table card if you want to change type or columns.</div>
+                            <div>4. Generate the config and models in the applied Laravel project.</div>
+                        </div>
+                    </div>
+                </aside>
             </div>
-        </div>
-
-        <div class="panel">
-            <button type="submit" class="button primary">Generate CRUD config</button>
-        </div>
-    </form>
+        </form>
+    </div>
 @endsection
 
 @push('scripts')
     <script>
         const crudderSchema = @json($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        const joinList = document.getElementById('join-list');
-        const addJoinButton = document.getElementById('add-join');
+        const initialGraph = @json($graph, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        const relationTypes = @json($relationTypes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-        function tableOptions(selected = '') {
-            return Object.keys(crudderSchema).map(table => `<option value="${table}"${selected === table ? ' selected' : ''}>${table}</option>`).join('');
+        const canvas = document.getElementById('workspace-canvas');
+        const svg = document.getElementById('workspace-svg');
+        const palette = document.getElementById('table-palette');
+        const graphInput = document.getElementById('graph_state');
+        const selectionBadge = document.getElementById('selection-badge');
+        const selectionText = document.getElementById('selection-text');
+        const relationTypeSelect = document.getElementById('default_relation_type');
+        const clearSelectionButton = document.getElementById('clear-selection');
+        const centerButton = document.getElementById('center-workspace');
+        const emptyState = document.getElementById('workspace-empty');
+
+        const state = normalizeGraph(initialGraph || {});
+        let selectedEndpoint = null;
+        let dragging = null;
+        let dragOffset = { x: 0, y: 0 };
+        let relationCounter = state.meta?.nextRelationId || 1;
+
+        function normalizeGraph(graph) {
+            const tables = {};
+            const sourceTables = graph.tables || {};
+            Object.keys(sourceTables).forEach((name, index) => {
+                const table = sourceTables[name] || {};
+                tables[name] = {
+                    x: Number(table.x ?? (80 + (index % 3) * 320)),
+                    y: Number(table.y ?? (60 + Math.floor(index / 3) * 260)),
+                    order: Number(table.order ?? index),
+                };
+            });
+
+            const relations = Array.isArray(graph.relations) ? graph.relations.map((relation, index) => ({
+                id: relation.id || `relation-${index + 1}`,
+                type: relation.type || 'belongsTo',
+                from_table: relation.from_table || '',
+                from_column: relation.from_column || '',
+                to_table: relation.to_table || '',
+                to_column: relation.to_column || '',
+                label_column: relation.label_column || '',
+            })).filter(relation => relation.from_table && relation.from_column && relation.to_table && relation.to_column) : [];
+
+            const nextOrder = Math.max(0, ...Object.values(tables).map(table => Number(table.order || 0))) + 1;
+            const nextRelationId = relations.reduce((max, relation) => {
+                const match = String(relation.id || '').match(/(\d+)$/);
+                const value = match ? Number(match[1]) : 0;
+                return Math.max(max, value);
+            }, 0) + 1;
+
+            return {
+                tables,
+                relations,
+                meta: {
+                    nextOrder,
+                    nextRelationId,
+                },
+            };
         }
 
-        function columnOptions(table, selected = '', includeBlank = true) {
-            const columns = (crudderSchema[table] && crudderSchema[table].columns) ? crudderSchema[table].columns : [];
-            const options = columns.map(column => `<option value="${column.name}"${selected === column.name ? ' selected' : ''}>${column.name}</option>`).join('');
+        function tableNames() {
+            return Object.keys(crudderSchema);
+        }
+
+        function columnsFor(tableName) {
+            const table = crudderSchema[tableName] || {};
+            return Array.isArray(table.columns) ? table.columns : [];
+        }
+
+        function columnsForSelect(tableName, selected = '', includeBlank = true) {
+            const options = columnsFor(tableName).map((column) => {
+                const value = String(column.name || '');
+                const isSelected = value === selected ? ' selected' : '';
+                return `<option value="${value}"${isSelected}>${value}</option>`;
+            }).join('');
+
             return (includeBlank ? '<option value="">Choose...</option>' : '') + options;
         }
 
-        function labelOptions(table, selected = '') {
-            const columns = (crudderSchema[table] && crudderSchema[table].columns) ? crudderSchema[table].columns : [];
-            const options = columns
-                .filter(column => {
+        function labelColumnsForSelect(tableName, selected = '') {
+            const options = columnsFor(tableName)
+                .filter((column) => {
                     const name = String(column.name || '').toLowerCase();
                     const type = String(column.type || '').toLowerCase();
                     return !name.includes('id') && (type.includes('char') || type.includes('text') || type.includes('json'));
                 })
-                .map(column => `<option value="${column.name}"${selected === column.name ? ' selected' : ''}>${column.name}</option>`)
-                .join('');
+                .map((column) => {
+                    const value = String(column.name || '');
+                    const isSelected = value === selected ? ' selected' : '';
+                    return `<option value="${value}"${isSelected}>${value}</option>`;
+                }).join('');
+
             return '<option value="">Auto</option>' + options;
         }
 
-        function applyJoinSelects(row, data = {}) {
-            const leftTable = row.querySelector('[data-field="left_table"]');
-            const leftColumn = row.querySelector('[data-field="left_column"]');
-            const rightTable = row.querySelector('[data-field="right_table"]');
-            const rightColumn = row.querySelector('[data-field="right_column"]');
-            const labelColumn = row.querySelector('[data-field="label_column"]');
-
-            leftTable.value = data.left_table || leftTable.value || '';
-            rightTable.value = data.right_table || rightTable.value || '';
-            leftColumn.innerHTML = columnOptions(leftTable.value, data.left_column || '');
-            rightColumn.innerHTML = columnOptions(rightTable.value, data.right_column || '');
-            labelColumn.innerHTML = labelOptions(rightTable.value, data.label_column || '');
-            leftColumn.value = data.left_column || leftColumn.value || '';
-            rightColumn.value = data.right_column || rightColumn.value || '';
-            labelColumn.value = data.label_column || labelColumn.value || '';
+        function renderPalette() {
+            palette.querySelectorAll('[draggable="true"]').forEach((card) => {
+                card.addEventListener('dragstart', (event) => {
+                    event.dataTransfer.setData('text/plain', card.dataset.table || '');
+                    event.dataTransfer.effectAllowed = 'copy';
+                });
+            });
         }
 
-        function joinTemplate(data = {}) {
-            const row = document.createElement('div');
-            row.className = 'row-item join-row';
-            row.setAttribute('draggable', 'true');
-            row.innerHTML = `
-                <div class="row-header">
-                    <div class="row-handle">Drag to reorder</div>
-                    <button type="button" class="button ghost remove-row">Remove</button>
+        function normalizePosition(tableName, x, y) {
+            const maxX = Math.max(20, canvas.clientWidth - 320);
+            const maxY = Math.max(20, canvas.clientHeight - 120);
+            return {
+                x: Math.max(20, Math.min(Number(x || 0), maxX)),
+                y: Math.max(20, Math.min(Number(y || 0), maxY)),
+            };
+        }
+
+        function tableOrder() {
+            return Object.entries(state.tables).sort((a, b) => {
+                const left = Number(a[1].order || 0);
+                const right = Number(b[1].order || 0);
+                return left - right;
+            }).map(([name]) => name);
+        }
+
+        function makeCard(tableName) {
+            const table = crudderSchema[tableName] || {};
+            const card = document.createElement('div');
+            card.className = 'workspace-card';
+            card.dataset.table = tableName;
+            card.style.left = `${state.tables[tableName].x}px`;
+            card.style.top = `${state.tables[tableName].y}px`;
+            card.style.zIndex = String(50 + Number(state.tables[tableName].order || 0));
+
+            const relations = state.relations.filter((relation) => relation.from_table === tableName);
+            card.innerHTML = `
+                <div class="card-head" data-drag-handle>
+                    <div class="card-title">
+                        <strong>${tableName}</strong>
+                        <span>${columnsFor(tableName).length} columns</span>
+                    </div>
+                    <div class="action-row">
+                        <button type="button" class="icon-button remove-table" title="Remove table">Remove</button>
+                    </div>
                 </div>
-                <div class="row-columns join">
-                    <div class="field">
-                        <label>From table</label>
-                        <select data-field="left_table"><option value="">Choose...</option>${tableOptions(data.left_table || '')}</select>
+                <div class="card-body">
+                    <div class="column-list"></div>
+                    <div class="relations-panel">
+                        <div class="relations-head">
+                            <strong style="font-size:.95rem">Relations</strong>
+                            <button type="button" class="button ghost add-relation" style="padding:8px 12px">Add relation</button>
+                        </div>
+                        <div class="relations-list"></div>
                     </div>
-                    <div class="field"><label>From column</label><select data-field="left_column"></select></div>
-                    <div class="field">
-                        <label>To table</label>
-                        <select data-field="right_table"><option value="">Choose...</option>${tableOptions(data.right_table || '')}</select>
-                    </div>
-                    <div class="field"><label>To column</label><select data-field="right_column"></select></div>
-                    <div class="field"><label>Label column</label><select data-field="label_column"></select></div>
-                    <div class="field"><label>&nbsp;</label><input type="hidden" data-field="row_marker" value="1"></div>
                 </div>
             `;
-            applyJoinSelects(row, data);
-            wireJoinRow(row);
+
+            const columnList = card.querySelector('.column-list');
+            columnsFor(tableName).forEach((column) => {
+                const columnName = String(column.name || '');
+                const pill = document.createElement('button');
+                pill.type = 'button';
+                pill.className = 'column-pill';
+                pill.dataset.column = columnName;
+                pill.innerHTML = `<span>${columnName}</span><small>${String(column.type || '')}</small>`;
+                if (selectedEndpoint && selectedEndpoint.table === tableName && selectedEndpoint.column === columnName) {
+                    pill.classList.add('active');
+                }
+                pill.addEventListener('click', () => handleColumnClick(tableName, columnName));
+                columnList.appendChild(pill);
+            });
+
+            const relationList = card.querySelector('.relations-list');
+            relations.length ? relations.forEach((relation) => relationList.appendChild(makeRelationRow(relation))) : relationList.appendChild(makeEmptyRelationHint(tableName));
+
+            card.querySelector('.remove-table').addEventListener('click', () => removeTable(tableName));
+            card.querySelector('.add-relation').addEventListener('click', () => addInlineRelation(tableName));
+            card.querySelector('[data-drag-handle]').addEventListener('pointerdown', (event) => startDrag(event, tableName, card));
+
+            return card;
+        }
+
+        function makeEmptyRelationHint(tableName) {
+            const empty = document.createElement('div');
+            empty.className = 'small';
+            empty.textContent = `No outgoing relations yet for ${tableName}.`;
+            return empty;
+        }
+
+        function makeRelationRow(relation) {
+            const row = document.createElement('div');
+            row.className = 'relation-row';
+            row.dataset.relationId = relation.id;
+            row.innerHTML = `
+                <div class="mini-grid three">
+                    <label>
+                        <span>Type</span>
+                        <select data-field="type">
+                            ${Object.entries(relationTypes).map(([value, label]) => `<option value="${value}"${relation.type === value ? ' selected' : ''}>${label}</option>`).join('')}
+                        </select>
+                    </label>
+                    <label>
+                        <span>Source column</span>
+                        <select data-field="from_column">${columnsForSelect(relation.from_table, relation.from_column, false)}</select>
+                    </label>
+                    <label>
+                        <span>Target table</span>
+                        <select data-field="to_table">
+                            <option value="">Choose...</option>
+                            ${tableNames().map((tableName) => `<option value="${tableName}"${relation.to_table === tableName ? ' selected' : ''}>${tableName}</option>`).join('')}
+                        </select>
+                    </label>
+                </div>
+                <div class="mini-grid three">
+                    <label>
+                        <span>Target column</span>
+                        <select data-field="to_column">${columnsForSelect(relation.to_table, relation.to_column)}</select>
+                    </label>
+                    <label>
+                        <span>Label column</span>
+                        <select data-field="label_column">${labelColumnsForSelect(relation.to_table, relation.label_column)}</select>
+                    </label>
+                    <div style="display:flex;align-items:end">
+                        <button type="button" class="icon-button remove-relation" style="width:100%">Remove</button>
+                    </div>
+                </div>
+            `;
+
+            const type = row.querySelector('[data-field="type"]');
+            const fromColumn = row.querySelector('[data-field="from_column"]');
+            const toTable = row.querySelector('[data-field="to_table"]');
+            const toColumn = row.querySelector('[data-field="to_column"]');
+            const labelColumn = row.querySelector('[data-field="label_column"]');
+
+            const refreshTargets = () => {
+                const currentToTable = toTable.value || relation.to_table || '';
+                toColumn.innerHTML = columnsForSelect(currentToTable, relation.to_column);
+                labelColumn.innerHTML = labelColumnsForSelect(currentToTable, relation.label_column);
+            };
+
+            type.addEventListener('change', () => updateRelation(relation.id, { type: type.value }));
+            fromColumn.addEventListener('change', () => updateRelation(relation.id, { from_column: fromColumn.value }));
+            toTable.addEventListener('change', () => {
+                updateRelation(relation.id, { to_table: toTable.value, to_column: '', label_column: '' });
+                refreshTargets();
+            });
+            toColumn.addEventListener('change', () => updateRelation(relation.id, { to_column: toColumn.value }));
+            labelColumn.addEventListener('change', () => updateRelation(relation.id, { label_column: labelColumn.value }));
+            row.querySelector('.remove-relation').addEventListener('click', () => removeRelation(relation.id));
+
+            refreshTargets();
             return row;
         }
 
-        function wireJoinRow(row) {
-            const leftTable = row.querySelector('[data-field="left_table"]');
-            const rightTable = row.querySelector('[data-field="right_table"]');
-            const removeButton = row.querySelector('.remove-row');
+        function renderWorkspace() {
+            canvas.querySelectorAll('.workspace-card').forEach((node) => node.remove());
 
-            const refresh = () => applyJoinSelects(row, {
-                left_table: leftTable.value,
-                left_column: row.querySelector('[data-field="left_column"]').value,
-                right_table: rightTable.value,
-                right_column: row.querySelector('[data-field="right_column"]').value,
-                label_column: row.querySelector('[data-field="label_column"]').value,
+            const ordered = tableOrder();
+            ordered.forEach((tableName) => {
+                const card = makeCard(tableName);
+                canvas.appendChild(card);
             });
 
-            leftTable.addEventListener('change', refresh);
-            rightTable.addEventListener('change', refresh);
-            removeButton.addEventListener('click', () => {
-                row.remove();
-                syncJoinNames();
-            });
-            refresh();
+            emptyState.style.display = ordered.length ? 'none' : 'grid';
+            syncSelectionUi();
+            drawConnections();
         }
 
-        function syncJoinNames() {
-            [...joinList.querySelectorAll('.join-row')].forEach((row, index) => {
-                row.querySelectorAll('[data-field]').forEach((input) => {
-                    const field = input.getAttribute('data-field');
-                    if (!field || field === 'row_marker') {
-                        return;
-                    }
-                    input.name = `join_${field}[${index}]`;
-                });
+        function syncSelectionUi() {
+            if (!selectedEndpoint) {
+                selectionBadge.textContent = 'No column selected';
+                selectionText.textContent = 'None';
+                document.querySelectorAll('.column-pill.active').forEach((node) => node.classList.remove('active'));
+                return;
+            }
+
+            selectionBadge.textContent = `${selectedEndpoint.table}.${selectedEndpoint.column}`;
+            selectionText.textContent = `Source: ${selectedEndpoint.table}.${selectedEndpoint.column}`;
+
+            document.querySelectorAll('.column-pill').forEach((node) => {
+                const isActive = node.closest('.workspace-card')?.dataset.table === selectedEndpoint.table && node.dataset.column === selectedEndpoint.column;
+                node.classList.toggle('active', isActive);
             });
         }
 
-        function enableJoinDragAndDrop() {
-            let dragging = null;
-            joinList.addEventListener('dragstart', (event) => {
-                const row = event.target.closest('.join-row');
-                if (!row) return;
-                dragging = row;
-                row.classList.add('dragging');
+        function syncGraphInput() {
+            graphInput.value = JSON.stringify({
+                tables: state.tables,
+                relations: state.relations,
+                meta: state.meta,
             });
-            joinList.addEventListener('dragend', () => {
-                if (dragging) dragging.classList.remove('dragging');
-                dragging = null;
+        }
+
+        function addTable(tableName, x, y) {
+            if (!crudderSchema[tableName] || state.tables[tableName]) {
+                return;
+            }
+
+            const position = normalizePosition(tableName, x, y);
+            state.tables[tableName] = {
+                x: position.x,
+                y: position.y,
+                order: state.meta.nextOrder++,
+            };
+
+            renderWorkspace();
+            syncGraphInput();
+        }
+
+        function removeTable(tableName) {
+            delete state.tables[tableName];
+            state.relations = state.relations.filter((relation) => relation.from_table !== tableName && relation.to_table !== tableName);
+            if (selectedEndpoint && selectedEndpoint.table === tableName) {
+                selectedEndpoint = null;
+            }
+            renderWorkspace();
+            syncGraphInput();
+        }
+
+        function addRelation(payload) {
+            const relation = {
+                id: `relation-${relationCounter++}`,
+                type: payload.type || relationTypeSelect.value || 'belongsTo',
+                from_table: payload.from_table || '',
+                from_column: payload.from_column || '',
+                to_table: payload.to_table || '',
+                to_column: payload.to_column || '',
+                label_column: payload.label_column || '',
+            };
+
+            if (!relation.from_table || !relation.from_column || !relation.to_table || !relation.to_column) {
+                return;
+            }
+
+            state.relations.push(relation);
+            state.meta.nextRelationId = relationCounter;
+            renderWorkspace();
+            syncGraphInput();
+        }
+
+        function addInlineRelation(tableName) {
+            const sourceColumns = columnsFor(tableName);
+            const targetTables = tableNames().filter((name) => name !== tableName);
+            const targetTable = targetTables[0] || tableName;
+            const targetColumns = columnsFor(targetTable);
+
+            addRelation({
+                type: relationTypeSelect.value || 'belongsTo',
+                from_table: tableName,
+                from_column: sourceColumns[0] ? String(sourceColumns[0].name || '') : '',
+                to_table: targetTable,
+                to_column: targetColumns[0] ? String(targetColumns[0].name || '') : '',
+                label_column: suggestLabelColumn(targetTable),
             });
-            joinList.addEventListener('dragover', (event) => {
-                event.preventDefault();
-                const row = event.target.closest('.join-row');
-                if (!row || !dragging || row === dragging) return;
-                const box = row.getBoundingClientRect();
-                const after = (event.clientY - box.top) > (box.height / 2);
-                if (after) {
-                    row.after(dragging);
-                } else {
-                    row.before(dragging);
+        }
+
+        function updateRelation(relationId, patch) {
+            const relation = state.relations.find((item) => item.id === relationId);
+            if (!relation) {
+                return;
+            }
+
+            Object.assign(relation, patch);
+            renderWorkspace();
+            syncGraphInput();
+        }
+
+        function removeRelation(relationId) {
+            state.relations = state.relations.filter((relation) => relation.id !== relationId);
+            renderWorkspace();
+            syncGraphInput();
+        }
+
+        function suggestLabelColumn(tableName) {
+            const columns = columnsFor(tableName);
+            const preferred = columns.find((column) => {
+                const name = String(column.name || '').toLowerCase();
+                const type = String(column.type || '').toLowerCase();
+                return !name.includes('id') && (type.includes('char') || type.includes('text') || type.includes('json'));
+            });
+
+            return preferred ? String(preferred.name || '') : '';
+        }
+
+        function handleColumnClick(tableName, columnName) {
+            if (!selectedEndpoint) {
+                selectedEndpoint = { table: tableName, column: columnName };
+                syncSelectionUi();
+                return;
+            }
+
+            if (selectedEndpoint.table === tableName && selectedEndpoint.column === columnName) {
+                selectedEndpoint = null;
+                syncSelectionUi();
+                return;
+            }
+
+            addRelation({
+                type: relationTypeSelect.value || 'belongsTo',
+                from_table: selectedEndpoint.table,
+                from_column: selectedEndpoint.column,
+                to_table: tableName,
+                to_column: columnName,
+                label_column: suggestLabelColumn(tableName),
+            });
+
+            selectedEndpoint = null;
+            syncSelectionUi();
+        }
+
+        function startDrag(event, tableName, card) {
+            if (event.button !== 0) {
+                return;
+            }
+
+            if (event.target.closest('button, select, input, textarea, label')) {
+                return;
+            }
+
+            event.preventDefault();
+            dragging = { tableName, card };
+            const rect = card.getBoundingClientRect();
+            dragOffset = {
+                x: event.clientX - rect.left,
+                y: event.clientY - rect.top,
+            };
+
+            card.style.zIndex = '999';
+            card.setPointerCapture(event.pointerId);
+        }
+
+        function moveDrag(event) {
+            if (!dragging) {
+                return;
+            }
+
+            const canvasRect = canvas.getBoundingClientRect();
+            const cardWidth = dragging.card.offsetWidth;
+            const cardHeight = dragging.card.offsetHeight;
+            const x = event.clientX - canvasRect.left - dragOffset.x;
+            const y = event.clientY - canvasRect.top - dragOffset.y;
+            const position = normalizePosition(dragging.tableName, x, y);
+
+            state.tables[dragging.tableName].x = position.x;
+            state.tables[dragging.tableName].y = position.y;
+            dragging.card.style.left = `${position.x}px`;
+            dragging.card.style.top = `${position.y}px`;
+            drawConnections();
+            syncGraphInput();
+        }
+
+        function stopDrag(event) {
+            if (!dragging) {
+                return;
+            }
+
+            dragging.card.style.zIndex = String(50 + Number(state.tables[dragging.tableName].order || 0));
+            dragging = null;
+            syncGraphInput();
+            event?.preventDefault?.();
+        }
+
+        function anchorForColumn(tableName, columnName) {
+            const card = canvas.querySelector(`.workspace-card[data-table="${CSS.escape(tableName)}"]`);
+            if (!card) {
+                return null;
+            }
+
+            const button = card.querySelector(`.column-pill[data-column="${CSS.escape(columnName)}"]`);
+            if (!button) {
+                return null;
+            }
+
+            const canvasRect = canvas.getBoundingClientRect();
+            const buttonRect = button.getBoundingClientRect();
+            return {
+                x: buttonRect.left - canvasRect.left + (buttonRect.width / 2),
+                y: buttonRect.top - canvasRect.top + (buttonRect.height / 2),
+            };
+        }
+
+        function relationColor(type) {
+            return {
+                belongsTo: '#0f172a',
+                hasOne: '#c2410c',
+                hasMany: '#7c3aed',
+                belongsToMany: '#0369a1',
+            }[type] || '#475569';
+        }
+
+        function drawConnections() {
+            svg.querySelectorAll('[data-relation-line]').forEach((node) => node.remove());
+
+            const svgRect = canvas.getBoundingClientRect();
+            state.relations.forEach((relation) => {
+                const from = anchorForColumn(relation.from_table, relation.from_column);
+                const to = anchorForColumn(relation.to_table, relation.to_column);
+                if (!from || !to) {
+                    return;
                 }
-                syncJoinNames();
+
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.dataset.relationLine = relation.id;
+                line.setAttribute('x1', String(from.x));
+                line.setAttribute('y1', String(from.y));
+                line.setAttribute('x2', String(to.x));
+                line.setAttribute('y2', String(to.y));
+                line.setAttribute('stroke', relationColor(relation.type));
+                line.setAttribute('stroke-width', '2.5');
+                line.setAttribute('stroke-linecap', 'round');
+                line.setAttribute('marker-end', 'url(#crudder-arrow)');
+                line.style.color = relationColor(relation.type);
+                svg.appendChild(line);
+
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.dataset.relationLine = relation.id;
+                label.setAttribute('x', String((from.x + to.x) / 2));
+                label.setAttribute('y', String((from.y + to.y) / 2 - 6));
+                label.setAttribute('fill', relationColor(relation.type));
+                label.setAttribute('font-size', '11');
+                label.setAttribute('font-weight', '700');
+                label.setAttribute('text-anchor', 'middle');
+                label.textContent = relationTypes[relation.type] || relation.type;
+                svg.appendChild(label);
             });
+
+            svg.setAttribute('viewBox', `0 0 ${canvas.clientWidth} ${canvas.clientHeight}`);
         }
 
-        function addJoinRow(data = {}) {
-            joinList.appendChild(joinTemplate(data));
-            syncJoinNames();
+        function centerTables() {
+            const ordered = tableOrder();
+            const columns = 3;
+            ordered.forEach((tableName, index) => {
+                const row = Math.floor(index / columns);
+                const col = index % columns;
+                state.tables[tableName].x = 40 + (col * 320);
+                state.tables[tableName].y = 40 + (row * 260);
+            });
+            renderWorkspace();
+            syncGraphInput();
         }
 
-        document.querySelectorAll('.suggested-join').forEach((button) => {
-            button.addEventListener('click', () => {
-                addJoinRow({
-                    left_table: button.dataset.leftTable,
-                    left_column: button.dataset.leftColumn,
-                    right_table: button.dataset.rightTable,
-                    right_column: button.dataset.rightColumn,
-                    label_column: button.dataset.labelColumn,
-                });
+        canvas.addEventListener('dragover', (event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+        });
+
+        canvas.addEventListener('drop', (event) => {
+            event.preventDefault();
+            const tableName = event.dataTransfer.getData('text/plain');
+            if (!tableName) {
+                return;
+            }
+
+            const canvasRect = canvas.getBoundingClientRect();
+            addTable(
+                tableName,
+                event.clientX - canvasRect.left - 140,
+                event.clientY - canvasRect.top - 50
+            );
+        });
+
+        document.addEventListener('pointermove', moveDrag);
+        document.addEventListener('pointerup', stopDrag);
+        document.addEventListener('pointercancel', stopDrag);
+        window.addEventListener('resize', () => {
+            drawConnections();
+        });
+
+        relationTypeSelect.addEventListener('change', syncSelectionUi);
+        clearSelectionButton.addEventListener('click', () => {
+            selectedEndpoint = null;
+            syncSelectionUi();
+        });
+        centerButton.addEventListener('click', centerTables);
+
+        palette.querySelectorAll('[draggable="true"]').forEach((card) => {
+            card.addEventListener('dragstart', (event) => {
+                event.dataTransfer.setData('text/plain', card.dataset.table || '');
+                event.dataTransfer.effectAllowed = 'copy';
             });
         });
 
-        addJoinButton?.addEventListener('click', () => addJoinRow());
-        enableJoinDragAndDrop();
+        syncGraphInput();
+        renderWorkspace();
 
-        [...joinList.querySelectorAll('.join-row')].forEach((row) => wireJoinRow(row));
-        syncJoinNames();
+        if (Object.keys(state.tables).length === 0) {
+            selectionText.textContent = 'Drop a table to begin';
+        }
     </script>
 @endpush

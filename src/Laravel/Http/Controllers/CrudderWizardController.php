@@ -21,7 +21,7 @@ final class CrudderWizardController extends Controller
         $status = (string)session('status', '');
         $config = $this->loadGeneratedConfig();
         if ($config === null || empty($config['resources'])) {
-            return response()->view('curdder::wizard', $this->wizardViewData($request));
+            return response()->view('curdder::wizard', $this->graphWizardViewData($request));
         }
 
         return response()->make($this->renderDashboard($config, $status !== '' ? $status : null));
@@ -30,15 +30,11 @@ final class CrudderWizardController extends Controller
     public function generate(Request $request)
     {
         $inspector = $this->inspector();
-        $schema = $inspector->inspect();
-
-        $selectedTables = array_values(array_filter((array)$request->input('tables', []), static fn ($value): bool => is_string($value) && $value !== ''));
+        $graph = $this->parseGraphState((string)$request->input('graph_state', ''));
+        $selectedTables = array_keys($graph['tables'] ?? []);
         if ($selectedTables === []) {
-            return response()->view('curdder::wizard', $this->wizardViewData($request, ['Please choose at least one table.']), 422);
+            return response()->view('curdder::wizard', $this->graphWizardViewData($request, ['Please drag at least one table into the workspace.']), 422);
         }
-
-        $joins = $this->buildJoinRules($request);
-        $joins = $this->normalizeJoins($joins);
 
         $selectedSchema = $inspector->inspect($selectedTables);
         $generator = new ConfigGenerator($inspector);
@@ -47,12 +43,14 @@ final class CrudderWizardController extends Controller
             mode: 'laravel',
             database: $this->databaseConfig(),
             spec: ['name' => (string)$request->input('app_name', config('app.name', 'Curdder CRUD'))],
-            joins: $joins
+            joins: $this->graphRelationsToJoinRules($graph['relations'] ?? []),
+            graph: $graph
         );
 
         $generator->writeConfigFile($this->generatedConfigPath(), $config);
+        $models = $this->writeModels($selectedSchema, $graph['relations'] ?? []);
 
-        return response()->make($this->renderSuccess($config));
+        return response()->make($this->renderSuccess($config, $models));
     }
 
     public function createTableForm(Request $request)
@@ -298,34 +296,312 @@ final class CrudderWizardController extends Controller
         return array_values(array_unique($normalized));
     }
 
-    private function wizardViewData(Request $request, array $errors = []): array
+    private function graphWizardViewData(Request $request, array $errors = []): array
     {
         $schema = $this->inspector()->inspect();
-        $selectedTables = array_values(array_filter((array)$request->input('tables', []), static fn ($value): bool => is_string($value) && $value !== ''));
-        $joinRows = $this->joinRowsFromRequest($request);
-        if ($joinRows === []) {
-            $joinRows = $this->suggestJoinRows($schema);
-        }
-        if ($joinRows === []) {
-            $joinRows[] = [
-                'left_table' => '',
-                'left_column' => '',
-                'right_table' => '',
-                'right_column' => '',
-                'label_column' => '',
-            ];
-        }
+        $graph = $this->parseGraphState((string)$request->input('graph_state', ''));
 
         return [
             'errors' => $errors,
             'schema' => $schema,
-            'selectedTables' => $selectedTables,
-            'joinRows' => $joinRows,
+            'graph' => $graph,
+            'relationTypes' => $this->relationTypes(),
             'appName' => (string)$request->input('app_name', config('app.name', 'Curdder CRUD')),
             'path' => (string)config('crudder.path', 'crudder'),
             'createTableUrl' => route('crudder.tables.create'),
             'generateUrl' => route('crudder.generate'),
+            'modelsUrl' => route('crudder.index'),
         ];
+    }
+
+    private function relationTypes(): array
+    {
+        return [
+            'belongsTo' => 'Belongs To',
+            'hasOne' => 'Has One',
+            'hasMany' => 'Has Many',
+            'belongsToMany' => 'Belongs To Many',
+        ];
+    }
+
+    private function parseGraphState(string $value): array
+    {
+        if ($value === '') {
+            return [
+                'tables' => [],
+                'relations' => [],
+            ];
+        }
+
+        $decoded = json_decode($value, true);
+        if (!is_array($decoded)) {
+            return [
+                'tables' => [],
+                'relations' => [],
+            ];
+        }
+
+        $tables = [];
+        foreach ((array)($decoded['tables'] ?? []) as $name => $table) {
+            if (is_string($name) && is_array($table)) {
+                $tables[$name] = [
+                    'x' => (int)($table['x'] ?? 0),
+                    'y' => (int)($table['y'] ?? 0),
+                    'order' => (int)($table['order'] ?? 0),
+                ];
+            } elseif (is_array($table) && isset($table['name'])) {
+                $tableName = (string)$table['name'];
+                $tables[$tableName] = [
+                    'x' => (int)($table['x'] ?? 0),
+                    'y' => (int)($table['y'] ?? 0),
+                    'order' => (int)($table['order'] ?? 0),
+                ];
+            }
+        }
+
+        $relations = [];
+        foreach ((array)($decoded['relations'] ?? []) as $relation) {
+            if (!is_array($relation)) {
+                continue;
+            }
+
+            $fromTable = (string)($relation['from_table'] ?? '');
+            $fromColumn = (string)($relation['from_column'] ?? '');
+            $toTable = (string)($relation['to_table'] ?? '');
+            $toColumn = (string)($relation['to_column'] ?? '');
+            $type = (string)($relation['type'] ?? 'belongsTo');
+            $labelColumn = (string)($relation['label_column'] ?? '');
+            if ($fromTable === '' || $fromColumn === '' || $toTable === '' || $toColumn === '') {
+                continue;
+            }
+
+            $relations[] = [
+                'type' => in_array($type, array_keys($this->relationTypes()), true) ? $type : 'belongsTo',
+                'from_table' => $fromTable,
+                'from_column' => $fromColumn,
+                'to_table' => $toTable,
+                'to_column' => $toColumn,
+                'label_column' => $labelColumn,
+            ];
+        }
+
+        return [
+            'tables' => $tables,
+            'relations' => $relations,
+        ];
+    }
+
+    private function graphRelationsToJoinRules(array $relations): array
+    {
+        $rules = [];
+        foreach ($relations as $relation) {
+            if (!is_array($relation)) {
+                continue;
+            }
+
+            $fromTable = (string)($relation['from_table'] ?? '');
+            $fromColumn = (string)($relation['from_column'] ?? '');
+            $toTable = (string)($relation['to_table'] ?? '');
+            $toColumn = (string)($relation['to_column'] ?? '');
+            $labelColumn = (string)($relation['label_column'] ?? '');
+            if ($fromTable === '' || $fromColumn === '' || $toTable === '' || $toColumn === '') {
+                continue;
+            }
+
+            $rule = $fromTable . '.' . $fromColumn . '=' . $toTable . '.' . $toColumn;
+            if ($labelColumn !== '') {
+                $rule .= ':' . $labelColumn;
+            }
+            $rules[] = $rule;
+        }
+
+        return $rules;
+    }
+
+    private function writeModels(array $schema, array $relations): array
+    {
+        $modelsDir = base_path('app/Models');
+        if (!is_dir($modelsDir) && !mkdir($modelsDir, 0777, true) && !is_dir($modelsDir)) {
+            throw new RuntimeException("Unable to create models directory: {$modelsDir}");
+        }
+
+        $selectedTables = array_keys($schema);
+        $written = [];
+        foreach ($selectedTables as $tableName) {
+            $className = $this->modelClassName($tableName);
+            $path = $modelsDir . '/' . $className . '.php';
+            if (is_file($path)) {
+                $written[] = ['table' => $tableName, 'model' => $className, 'path' => $path, 'created' => false];
+                continue;
+            }
+
+            $tableRelations = $this->relationsForTable($tableName, $relations);
+            $content = $this->modelStub($tableName, $schema[$tableName], $tableRelations);
+            file_put_contents($path, $content);
+            $written[] = ['table' => $tableName, 'model' => $className, 'path' => $path, 'created' => true];
+        }
+
+        return $written;
+    }
+
+    private function relationsForTable(string $tableName, array $relations): array
+    {
+        $items = [];
+        foreach ($relations as $relation) {
+            if (!is_array($relation)) {
+                continue;
+            }
+
+            if (($relation['from_table'] ?? '') === $tableName) {
+                $items[] = $relation;
+            }
+        }
+
+        return $items;
+    }
+
+    private function modelStub(string $tableName, array $table, array $relations): string
+    {
+        $className = $this->modelClassName($tableName);
+        $fillable = [];
+        foreach (($table['columns'] ?? []) as $column) {
+            if (!empty($column['primary']) && !empty($column['auto_increment'])) {
+                continue;
+            }
+            $fillable[] = (string)($column['name'] ?? '');
+        }
+
+        $methods = [];
+        foreach ($relations as $relation) {
+            $methods[] = $this->relationMethodStub($relation);
+        }
+
+        $fillableValues = array_values(array_filter($fillable));
+        $fillableLine = $fillableValues !== [] ? "['" . implode("', '", $fillableValues) . "']" : '[]';
+        $methodsBlock = implode("\n\n", array_filter($methods));
+
+        return <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+
+final class {$className} extends Model
+{
+    use HasFactory;
+
+    protected \$table = '{$tableName}';
+
+    protected \$fillable = {$fillableLine};
+
+{$methodsBlock}
+}
+PHP;
+    }
+
+    private function relationMethodStub(array $relation): string
+    {
+        $type = (string)($relation['type'] ?? 'belongsTo');
+        $fromTable = (string)($relation['from_table'] ?? '');
+        $fromColumn = (string)($relation['from_column'] ?? '');
+        $toTable = (string)($relation['to_table'] ?? '');
+        $toColumn = (string)($relation['to_column'] ?? 'id');
+
+        if ($fromTable === '' || $fromColumn === '' || $toTable === '') {
+            return '';
+        }
+
+        $targetModel = $this->modelClassName($toTable);
+        $methodName = $this->relationMethodName($type, $toTable);
+
+        return match ($type) {
+            'hasOne' => <<<PHP
+    public function {$methodName}(): HasOne
+    {
+        return \$this->hasOne({$targetModel}::class, '{$toColumn}', '{$fromColumn}');
+    }
+PHP,
+            'hasMany' => <<<PHP
+    public function {$methodName}(): HasMany
+    {
+        return \$this->hasMany({$targetModel}::class, '{$toColumn}', '{$fromColumn}');
+    }
+PHP,
+            'belongsToMany' => <<<PHP
+    public function {$methodName}(): BelongsToMany
+    {
+        return \$this->belongsToMany({$targetModel}::class);
+    }
+PHP,
+            default => <<<PHP
+    public function {$methodName}(): BelongsTo
+    {
+        return \$this->belongsTo({$targetModel}::class, '{$fromColumn}', '{$toColumn}');
+    }
+PHP,
+        };
+    }
+
+    private function relationMethodName(string $type, string $targetTable): string
+    {
+        return match ($type) {
+            'hasMany', 'belongsToMany' => $this->pluralStudly($targetTable),
+            default => $this->singularStudly($targetTable),
+        };
+    }
+
+    private function modelClassName(string $tableName): string
+    {
+        return $this->studly($this->singularize($tableName));
+    }
+
+    private function studly(string $value): string
+    {
+        $value = str_replace(['-', '_'], ' ', $value);
+        $value = ucwords($value);
+        return str_replace(' ', '', $value);
+    }
+
+    private function singularize(string $value): string
+    {
+        if (str_ends_with($value, 'ies')) {
+            return substr($value, 0, -3) . 'y';
+        }
+
+        if (str_ends_with($value, 'ses')) {
+            return substr($value, 0, -2);
+        }
+
+        if (str_ends_with($value, 's') && !str_ends_with($value, 'ss')) {
+            return substr($value, 0, -1);
+        }
+
+        return $value;
+    }
+
+    private function singularStudly(string $value): string
+    {
+        return $this->studly($this->singularize($value));
+    }
+
+    private function pluralStudly(string $value): string
+    {
+        $value = $this->singularize($value);
+        if (str_ends_with($value, 'y')) {
+            $value = substr($value, 0, -1) . 'ies';
+        } elseif (!str_ends_with($value, 's')) {
+            $value .= 's';
+        }
+
+        return $this->studly($value);
     }
 
     private function tableCreateViewData(Request $request, array $errors = []): array
@@ -868,13 +1144,23 @@ final class CrudderWizardController extends Controller
         return $html;
     }
 
-    private function renderSuccess(array $config): string
+    private function renderSuccess(array $config, array $models): string
     {
         $html = '<div style="max-width:960px;margin:0 auto;padding:32px 20px 64px;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">';
         $html .= '<div style="padding:24px;border-radius:24px;background:#052e16;color:#dcfce7">';
         $html .= '<h1 style="margin:0 0 8px;font-size:30px">CRUD config generated</h1>';
         $html .= '<p style="margin:0 0 12px">Saved to <code>' . htmlspecialchars($this->generatedConfigPath(), ENT_QUOTES) . '</code></p>';
         $html .= '<div style="margin-bottom:16px">Resources: ' . htmlspecialchars(implode(', ', array_keys($config['resources'] ?? [])), ENT_QUOTES) . '</div>';
+        if ($models !== []) {
+            $html .= '<div style="margin-bottom:16px;display:grid;gap:8px">';
+            $html .= '<div style="font-weight:700">Models</div>';
+            foreach ($models as $model) {
+                $status = !empty($model['created']) ? 'Created' : 'Skipped';
+                $html .= '<div style="padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.08);color:#dcfce7">';
+                $html .= htmlspecialchars($status . ': ' . ($model['model'] ?? '') . ' from ' . ($model['table'] ?? ''), ENT_QUOTES);
+                $html .= '</div>';
+            }
+        }
         $html .= '<div><a href="' . htmlspecialchars(route('crudder.index'), ENT_QUOTES) . '" style="display:inline-block;padding:12px 16px;border-radius:999px;background:#dcfce7;color:#052e16;font-weight:700;text-decoration:none">Open dashboard</a></div>';
         $html .= '</div></div>';
 
