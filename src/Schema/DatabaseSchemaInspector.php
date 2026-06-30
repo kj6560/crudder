@@ -12,12 +12,16 @@ final class DatabaseSchemaInspector
     private PDO $pdo;
     private string $driver;
 
-    public function __construct(string $dsn, string $user = '', string $password = '')
+    public function __construct(string|PDO $dsnOrPdo, string $user = '', string $password = '')
     {
-        $this->pdo = new PDO($dsn, $user, $password, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]);
+        if ($dsnOrPdo instanceof PDO) {
+            $this->pdo = $dsnOrPdo;
+        } else {
+            $this->pdo = new PDO($dsnOrPdo, $user, $password, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+        }
         $this->driver = (string)$this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
     }
 

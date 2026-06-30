@@ -26,7 +26,7 @@ final class ConfigGenerator
         }
 
         $schema = $options['spec']['schema'] ?? $this->inspector->inspect($options['tables'] ?? []);
-        $config = $this->buildConfig(
+        $config = $this->makeConfig(
             schema: $schema,
             mode: (string)($options['mode'] ?? 'both'),
             database: $options['database'] ?? [],
@@ -35,7 +35,7 @@ final class ConfigGenerator
         );
 
         $configFile = $output . '/crudder.php';
-        file_put_contents($configFile, "<?php\n\nreturn " . var_export($config, true) . ";\n");
+        $this->writeConfigFile($configFile, $config);
 
         $publicDir = $output . '/public';
         if (!is_dir($publicDir) && !mkdir($publicDir, 0777, true) && !is_dir($publicDir)) {
@@ -57,7 +57,7 @@ final class ConfigGenerator
         ];
     }
 
-    private function buildConfig(array $schema, string $mode, array $database, ?array $spec, array $joins): array
+    public function makeConfig(array $schema, string $mode, array $database, ?array $spec, array $joins): array
     {
         $resources = [];
         foreach ($schema as $tableName => $table) {
@@ -76,12 +76,22 @@ final class ConfigGenerator
 
         return [
             'app' => [
-                'name' => $spec['name'] ?? 'Curdder CRUD',
+                'name' => is_array($spec) ? ($spec['name'] ?? 'Curdder CRUD') : 'Curdder CRUD',
                 'mode' => $mode,
             ],
             'database' => $database,
             'resources' => $resources,
         ];
+    }
+
+    public function writeConfigFile(string $path, array $config): void
+    {
+        $directory = dirname($path);
+        if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+            throw new RuntimeException("Unable to create config directory: {$directory}");
+        }
+
+        file_put_contents($path, "<?php\n\nreturn " . var_export($config, true) . ";\n");
     }
 
     private function applyJoinOverrides(array $resources, array $joins): array

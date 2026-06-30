@@ -8,6 +8,13 @@
       "Curdder\\": "src/"
     }
   },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Curdder\\Laravel\\CurdderServiceProvider"
+      ]
+    }
+  },
   "bin": [
     "bin/curdder"
   ],
