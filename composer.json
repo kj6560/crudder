@@ -1,0 +1,17 @@
+{
+  "name": "keshavjha/curdder",
+  "description": "A PHP CRUD generator that inspects database tables or explicit specs and generates API and web CRUD scaffolds.",
+  "type": "library",
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "Curdder\\": "src/"
+    }
+  },
+  "bin": [
+    "bin/curdder"
+  ],
+  "require": {
+    "php": "^8.1"
+  }
+}

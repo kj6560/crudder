@@ -1,0 +1,15 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$bootstrap = __DIR__ . '/../src/bootstrap.php';
+if (!is_file($bootstrap)) {
+    fwrite(STDERR, "Unable to locate bootstrap file.\n");
+    exit(1);
+}
+
+require $bootstrap;
+
+$app = new Curdder\Console\Application();
+exit($app->run($_SERVER['argv'] ?? []));
