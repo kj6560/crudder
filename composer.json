@@ -1,6 +1,6 @@
 {
   "name": "keshavjha/curdder",
-  "description": "A PHP CRUD generator that inspects database tables or explicit specs and generates API and web CRUD scaffolds.",
+  "description": "A Laravel CRUD wizard that inspects database tables, manages joins, and generates CRUD config inside the host app.",
   "type": "library",
   "license": "MIT",
   "autoload": {

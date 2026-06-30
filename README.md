@@ -4,9 +4,9 @@ Curdder is a lightweight PHP CRUD generator.
 
 It can:
 - inspect an existing database schema
-- generate a CRUD-ready config for APIs, websites, or both
+- generate a CRUD-ready config for a Laravel app
 - accept explicit table and foreign-key join instructions
-- render a small built-in CRUD UI and JSON API
+- provide a Laravel wizard for selecting tables, joins, and creating tables
 
 ## Install
 
@@ -21,8 +21,8 @@ php vendor/bin/curdder generate \
   --dsn="mysql:host=127.0.0.1;dbname=app;charset=utf8mb4" \
   --user=root \
   --password=secret \
-  --output=./generated-app \
-  --mode=both
+  --output=./storage/app \
+  --mode=laravel
 ```
 
 ## Limit tables
@@ -32,7 +32,7 @@ php vendor/bin/curdder generate \
   --dsn="sqlite:/path/to/database.sqlite" \
   --table=users \
   --table=posts \
-  --output=./generated-app
+  --output=./storage/app
 ```
 
 ## Explicit joins
@@ -84,22 +84,14 @@ Then run:
 php vendor/bin/curdder generate \
   --dsn="mysql:host=127.0.0.1;dbname=app" \
   --spec=./crudder.json \
-  --output=./generated-app
+  --output=./storage/app
 ```
 
-## Use the generated app
+## Use in Laravel
 
-The generated project includes:
-- `crudder.php` config
-- `public/index.php` for web CRUD
-- `public/api.php` for JSON CRUD
+Install the package in your Laravel app and open:
 
-Serve it with:
+- `http://localhost:2222/crudder`
+- `http://localhost:2222/crudder/tables/create`
 
-```bash
-php -S 127.0.0.1:8000 -t public
-```
-
-Then open:
-- `http://127.0.0.1:8000/?resource=users`
-- `http://127.0.0.1:8000/api.php?resource=users`
+The package stores the generated config in `storage/app/crudder.php` by default.

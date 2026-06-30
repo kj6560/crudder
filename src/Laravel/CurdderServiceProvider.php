@@ -13,6 +13,7 @@ final class CurdderServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../../config/crudder.php', 'crudder');
+        $this->loadViewsFrom(__DIR__ . '/../../resources/views', 'curdder');
     }
 
     public function boot(): void
@@ -26,6 +27,8 @@ final class CurdderServiceProvider extends ServiceProvider
             ->group(function (): void {
                 Route::get('/', [CrudderWizardController::class, 'index'])->name('index');
                 Route::post('/generate', [CrudderWizardController::class, 'generate'])->name('generate');
+                Route::get('/tables/create', [CrudderWizardController::class, 'createTableForm'])->name('tables.create');
+                Route::post('/tables', [CrudderWizardController::class, 'storeTable'])->name('tables.store');
                 Route::get('/{resource}', [CrudderWizardController::class, 'showResource'])->name('resource.show');
                 Route::get('/{resource}/create', [CrudderWizardController::class, 'create'])->name('resource.create');
                 Route::post('/{resource}', [CrudderWizardController::class, 'store'])->name('resource.store');
