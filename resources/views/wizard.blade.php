@@ -19,7 +19,7 @@
             align-items: start;
         }
         .workspace-panel {
-            min-height: 72vh;
+            min-height: 76vh;
             position: relative;
             overflow: hidden;
             border: 1px solid var(--line);
@@ -38,14 +38,31 @@
         }
         .workspace-canvas {
             position: relative;
-            min-height: 64vh;
+            min-height: 68vh;
             border-radius: 20px;
             margin: 0 12px 12px;
+            overflow: auto;
             background:
                 linear-gradient(transparent 95%, rgba(148, 163, 184, 0.16) 96%),
                 linear-gradient(90deg, transparent 95%, rgba(148, 163, 184, 0.16) 96%);
             background-size: 56px 56px;
-            overflow: hidden;
+            scrollbar-gutter: stable both-edges;
+        }
+        .workspace-stage {
+            position: relative;
+            min-width: 1600px;
+            min-height: 860px;
+        }
+        .workspace-stage::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background:
+                linear-gradient(transparent 95%, rgba(148, 163, 184, 0.16) 96%),
+                linear-gradient(90deg, transparent 95%, rgba(148, 163, 184, 0.16) 96%);
+            background-size: 56px 56px;
+            opacity: .22;
         }
         .workspace-empty {
             position: absolute;
@@ -69,7 +86,7 @@
         }
         .workspace-card {
             position: absolute;
-            width: 280px;
+            width: 300px;
             border: 1px solid var(--line);
             border-radius: 20px;
             background: rgba(255, 255, 255, 0.98);
@@ -113,10 +130,10 @@
         }
         .column-pill {
             width: 100%;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            display: grid;
+            grid-template-columns: 1fr auto auto;
             gap: 10px;
+            align-items: center;
             border: 1px solid #e2e8f0;
             border-radius: 14px;
             background: #fff;
@@ -131,6 +148,17 @@
         .column-pill.active {
             border-color: rgba(245, 158, 11, 0.9);
             background: #fff7ed;
+        }
+        .column-pill .column-anchor {
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+            border: 2px solid #f59e0b;
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.12);
+        }
+        .column-pill.active .column-anchor {
+            background: #f59e0b;
         }
         .column-pill small {
             color: var(--muted);
@@ -318,17 +346,19 @@
                         <span class="badge" id="selection-badge">No column selected</span>
                     </div>
                     <div class="workspace-canvas" id="workspace-canvas">
-                        <svg class="workspace-svg" id="workspace-svg" aria-hidden="true">
-                            <defs>
-                                <marker id="crudder-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                                    <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
-                                </marker>
-                            </defs>
-                        </svg>
-                        <div class="workspace-empty" id="workspace-empty">
-                            <div>
-                                <h3 style="margin:0 0 8px">Drop tables here</h3>
-                                <div>Drag tables from the left or drop them on this area.</div>
+                        <div class="workspace-stage" id="workspace-stage">
+                            <svg class="workspace-svg" id="workspace-svg" aria-hidden="true">
+                                <defs>
+                                    <marker id="crudder-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                                        <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+                                    </marker>
+                                </defs>
+                            </svg>
+                            <div class="workspace-empty" id="workspace-empty">
+                                <div>
+                                    <h3 style="margin:0 0 8px">Drop tables here</h3>
+                                    <div>Drag tables from the left or drop them on this area.</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -378,6 +408,7 @@
         const relationTypes = @json($relationTypes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         const canvas = document.getElementById('workspace-canvas');
+        const stage = document.getElementById('workspace-stage');
         const svg = document.getElementById('workspace-svg');
         const palette = document.getElementById('table-palette');
         const graphInput = document.getElementById('graph_state');
@@ -478,8 +509,8 @@
         }
 
         function normalizePosition(tableName, x, y) {
-            const maxX = Math.max(20, canvas.clientWidth - 320);
-            const maxY = Math.max(20, canvas.clientHeight - 120);
+            const maxX = Math.max(20, stage.clientWidth - 340);
+            const maxY = Math.max(20, stage.clientHeight - 120);
             return {
                 x: Math.max(20, Math.min(Number(x || 0), maxX)),
                 y: Math.max(20, Math.min(Number(y || 0), maxY)),
@@ -533,7 +564,7 @@
                 pill.type = 'button';
                 pill.className = 'column-pill';
                 pill.dataset.column = columnName;
-                pill.innerHTML = `<span>${columnName}</span><small>${String(column.type || '')}</small>`;
+                pill.innerHTML = `<span>${columnName}</span><span class="column-anchor" aria-hidden="true"></span><small>${String(column.type || '')}</small>`;
                 if (selectedEndpoint && selectedEndpoint.table === tableName && selectedEndpoint.column === columnName) {
                     pill.classList.add('active');
                 }
@@ -805,11 +836,9 @@
                 return;
             }
 
-            const canvasRect = canvas.getBoundingClientRect();
-            const cardWidth = dragging.card.offsetWidth;
-            const cardHeight = dragging.card.offsetHeight;
-            const x = event.clientX - canvasRect.left - dragOffset.x;
-            const y = event.clientY - canvasRect.top - dragOffset.y;
+            const stageRect = stage.getBoundingClientRect();
+            const x = event.clientX - stageRect.left - dragOffset.x;
+            const y = event.clientY - stageRect.top - dragOffset.y;
             const position = normalizePosition(dragging.tableName, x, y);
 
             state.tables[dragging.tableName].x = position.x;
@@ -832,18 +861,18 @@
         }
 
         function anchorForColumn(tableName, columnName) {
-            const card = canvas.querySelector(`.workspace-card[data-table="${CSS.escape(tableName)}"]`);
+            const card = stage.querySelector(`.workspace-card[data-table="${CSS.escape(tableName)}"]`);
             if (!card) {
                 return null;
             }
 
-            const button = card.querySelector(`.column-pill[data-column="${CSS.escape(columnName)}"]`);
-            if (!button) {
+            const anchor = card.querySelector(`.column-pill[data-column="${CSS.escape(columnName)}"] .column-anchor`);
+            if (!anchor) {
                 return null;
             }
 
-            const canvasRect = canvas.getBoundingClientRect();
-            const buttonRect = button.getBoundingClientRect();
+            const canvasRect = stage.getBoundingClientRect();
+            const buttonRect = anchor.getBoundingClientRect();
             return {
                 x: buttonRect.left - canvasRect.left + (buttonRect.width / 2),
                 y: buttonRect.top - canvasRect.top + (buttonRect.height / 2),
@@ -862,7 +891,6 @@
         function drawConnections() {
             svg.querySelectorAll('[data-relation-line]').forEach((node) => node.remove());
 
-            const svgRect = canvas.getBoundingClientRect();
             state.relations.forEach((relation) => {
                 const from = anchorForColumn(relation.from_table, relation.from_column);
                 const to = anchorForColumn(relation.to_table, relation.to_column);
@@ -895,7 +923,7 @@
                 svg.appendChild(label);
             });
 
-            svg.setAttribute('viewBox', `0 0 ${canvas.clientWidth} ${canvas.clientHeight}`);
+            svg.setAttribute('viewBox', `0 0 ${stage.scrollWidth} ${stage.scrollHeight}`);
         }
 
         function centerTables() {
@@ -923,7 +951,7 @@
                 return;
             }
 
-            const canvasRect = canvas.getBoundingClientRect();
+            const canvasRect = stage.getBoundingClientRect();
             addTable(
                 tableName,
                 event.clientX - canvasRect.left - 140,
